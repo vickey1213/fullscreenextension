@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "Rest Reminder",
+  "version": "1.0",
+  "description": "Reminds you to take a break every minute.",
+  "permissions": [
+    "alarms",
+    "tabs",
+    "windows",
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "host_permissions": ["<all_urls>"],
+  "web_accessible_resources": [
+    {
+      "resources": ["reminder.html"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
