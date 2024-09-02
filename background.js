@@ -1,5 +1,6 @@
 let originalState = {};
 let originalTabId = null;
+let isReminderActive = false;
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   switch (message.command) {
@@ -17,6 +18,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       break;
 
     case "restoreWindow":
+      isReminderActive = false;
       chrome.tabs.remove(sender.tab.id);
       if (originalState.id) {
         chrome.windows.update(originalState.id, {
@@ -37,7 +39,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === "reminderAlarm") {
     chrome.windows.getLastFocused((focusedWindow) => {
-      if (focusedWindow.focused) {
+      if (focusedWindow.focused && !isReminderActive) {
         originalState = {
           id: focusedWindow.id,
           state: focusedWindow.state,
@@ -47,16 +49,19 @@ chrome.alarms.onAlarm.addListener((alarm) => {
         chrome.tabs.query(
           { active: true, windowId: focusedWindow.id },
           (tabs) => {
-            originalTabId = tabs[0].id;
-            chrome.tabs.create(
-              { url: chrome.runtime.getURL("reminder.html") },
-              (newTab) => {
-                chrome.windows.update(newTab.windowId, {
-                  state: "fullscreen",
-                  focused: true,
-                });
-              }
-            );
+            if (tabs.length > 0) {
+              originalTabId = tabs[0].id;
+              chrome.tabs.create(
+                { url: chrome.runtime.getURL("reminder.html") },
+                (newTab) => {
+                  isReminderActive = true;
+                  chrome.windows.update(newTab.windowId, {
+                    state: "fullscreen",
+                    focused: true,
+                  });
+                }
+              );
+            }
           }
         );
       } else {
@@ -64,6 +69,26 @@ chrome.alarms.onAlarm.addListener((alarm) => {
           "Chrome is not the active application. Skipping full-screen trigger."
         );
       }
+    });
+  }
+});
+
+chrome.windows.onFocusChanged.addListener((windowId) => {
+  if (isReminderActive && windowId === chrome.windows.WINDOW_ID_NONE) {
+    setTimeout(() => {
+      chrome.windows.update(originalState.id, {
+        state: "fullscreen",
+        focused: true,
+      });
+    }, 1000);
+  }
+});
+
+chrome.windows.onBoundsChanged.addListener((window) => {
+  if (isReminderActive && window.state !== "fullscreen") {
+    chrome.windows.update(window.id, {
+      state: "fullscreen",
+      focused: true,
     });
   }
 });

@@ -49,11 +49,30 @@ if (!document.getElementById("restReminderDialog")) {
 
   okButton.addEventListener("click", () => {
     chrome.runtime.sendMessage({ command: "restoreWindow" }, (response) => {
-      console.log("Tab closed and original tab focused");
+      overlay.remove();
+      document.exitFullscreen();
     });
   });
 
   dialog.appendChild(okButton);
   overlay.appendChild(dialog);
-  document.getElementById("reminderContent").appendChild(overlay);
+  document.body.appendChild(overlay);
+
+  function enterFullscreen() {
+    if (document.documentElement.requestFullscreen) {
+      document.documentElement.requestFullscreen();
+    }
+  }
+
+  function ensureFullscreen() {
+    if (!document.fullscreenElement) {
+      setTimeout(() => {
+        enterFullscreen();
+      }, 1000);
+    }
+  }
+
+  document.addEventListener("fullscreenchange", ensureFullscreen);
+
+  enterFullscreen();
 }
