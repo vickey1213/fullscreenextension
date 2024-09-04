@@ -1,6 +1,6 @@
 let originalState = {};
-let originalTabId = null;
 let isReminderActive = false;
+let reminderTabId = null;
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   switch (message.command) {
@@ -19,6 +19,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     case "restoreWindow":
       isReminderActive = false;
+      reminderTabId = null;
       chrome.tabs.remove(sender.tab.id);
       if (originalState.id) {
         chrome.windows.update(originalState.id, {
@@ -26,7 +27,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           focused: originalState.focused,
         });
       }
-      chrome.tabs.update(originalTabId, { active: true });
       sendResponse({ status: "Tab closed and original tab focused" });
       break;
 
@@ -38,57 +38,44 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === "reminderAlarm") {
-    chrome.windows.getLastFocused((focusedWindow) => {
-      if (focusedWindow.focused && !isReminderActive) {
-        originalState = {
-          id: focusedWindow.id,
-          state: focusedWindow.state,
-          focused: focusedWindow.focused,
-        };
+    chrome.windows.getAll({ populate: true }, (windows) => {
+      let reminderTabExists = false;
 
-        chrome.tabs.query(
-          { active: true, windowId: focusedWindow.id },
-          (tabs) => {
-            if (tabs.length > 0) {
-              originalTabId = tabs[0].id;
-              chrome.tabs.create(
-                { url: chrome.runtime.getURL("reminder.html") },
-                (newTab) => {
-                  isReminderActive = true;
-                  chrome.windows.update(newTab.windowId, {
-                    state: "fullscreen",
-                    focused: true,
-                  });
-                }
-              );
-            }
+      for (const window of windows) {
+        for (const tab of window.tabs) {
+          if (tab.url && tab.url.includes("reminder.html")) {
+            reminderTabExists = true;
+            reminderTabId = tab.id;
+            break;
+          }
+        }
+        if (reminderTabExists) break;
+      }
+
+      if (!reminderTabExists) {
+        chrome.tabs.create(
+          { url: chrome.runtime.getURL("reminder.html") },
+          (newTab) => {
+            isReminderActive = true;
+            reminderTabId = newTab.id;
+            chrome.windows.update(newTab.windowId, {
+              state: "fullscreen",
+              focused: true,
+            });
           }
         );
       } else {
         console.log(
-          "Chrome is not the active application. Skipping full-screen trigger."
+          "Reminder tab is already active. No new tab will be created."
         );
       }
     });
   }
 });
 
-chrome.windows.onFocusChanged.addListener((windowId) => {
-  if (isReminderActive && windowId === chrome.windows.WINDOW_ID_NONE) {
-    setTimeout(() => {
-      chrome.windows.update(originalState.id, {
-        state: "fullscreen",
-        focused: true,
-      });
-    }, 1000);
-  }
-});
-
-chrome.windows.onBoundsChanged.addListener((window) => {
-  if (isReminderActive && window.state !== "fullscreen") {
-    chrome.windows.update(window.id, {
-      state: "fullscreen",
-      focused: true,
-    });
+chrome.tabs.onRemoved.addListener((tabId, removeInfo) => {
+  if (tabId === reminderTabId) {
+    isReminderActive = false;
+    reminderTabId = null;
   }
 });

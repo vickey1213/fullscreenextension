@@ -48,9 +48,9 @@ if (!document.getElementById("restReminderDialog")) {
   });
 
   okButton.addEventListener("click", () => {
-    chrome.runtime.sendMessage({ command: "restoreWindow" }, (response) => {
+    chrome.runtime.sendMessage({ command: "restoreWindow" }, () => {
       overlay.remove();
-      document.exitFullscreen();
+      document.exitFullscreen(); 
     });
   });
 
@@ -58,21 +58,20 @@ if (!document.getElementById("restReminderDialog")) {
   overlay.appendChild(dialog);
   document.body.appendChild(overlay);
 
-  function enterFullscreen() {
-    if (document.documentElement.requestFullscreen) {
-      document.documentElement.requestFullscreen();
-    }
+  function queryTab() {
+    chrome.windows.getCurrent(function (window) {
+      if (window.state !== "fullscreen") {
+        chrome.windows.update(window.id, {
+          focused: true,
+          state: "fullscreen",
+        });
+      } else if (!window.focused) {
+        chrome.windows.update(window.id, { focused: true });
+      }
+
+      setTimeout(queryTab, 15000); 
+    });
   }
 
-  function ensureFullscreen() {
-    if (!document.fullscreenElement) {
-      setTimeout(() => {
-        enterFullscreen();
-      }, 1000);
-    }
-  }
-
-  document.addEventListener("fullscreenchange", ensureFullscreen);
-
-  enterFullscreen();
+  queryTab();
 }
